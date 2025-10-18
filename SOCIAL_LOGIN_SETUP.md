@@ -93,4 +93,3 @@ For production, make sure to:
 - Check that redirect URIs match exactly
 - Verify OAuth app settings in provider dashboards
 - Check browser console for any errors
-
