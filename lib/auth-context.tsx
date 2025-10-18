@@ -1,11 +1,14 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
+import { useSession, signIn, signOut } from 'next-auth/react'
 
 interface User {
   id: string
   email: string
   username: string
+  name?: string
+  image?: string
 }
 
 interface AuthContextType {
@@ -13,6 +16,7 @@ interface AuthContextType {
   token: string | null
   login: (email: string, password: string) => Promise<boolean>
   register: (email: string, username: string, password: string) => Promise<boolean>
+  socialLogin: (provider: string) => Promise<void>
   logout: () => void
   loading: boolean
 }
@@ -20,21 +24,41 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { data: session, status } = useSession()
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check for existing token on mount
-    const savedToken = localStorage.getItem('chess_token')
-    if (savedToken) {
-      setToken(savedToken)
-      // Verify token and get user info
-      fetchUserInfo(savedToken)
-    } else {
-      setLoading(false)
+    if (status === 'loading') {
+      setLoading(true)
+      return
     }
-  }, [])
+
+    if (session?.user) {
+      // User is signed in with NextAuth
+      setUser({
+        id: session.user.id || '',
+        email: session.user.email || '',
+        username: session.user.username || session.user.name || '',
+        name: session.user.name || undefined,
+        image: session.user.image || undefined
+      })
+      setToken('nextauth-session') // Placeholder for NextAuth sessions
+    } else {
+      // Check for existing token on mount
+      const savedToken = localStorage.getItem('chess_token')
+      if (savedToken) {
+        setToken(savedToken)
+        // Verify token and get user info
+        fetchUserInfo(savedToken)
+      } else {
+        setUser(null)
+        setToken(null)
+      }
+    }
+    setLoading(false)
+  }, [session, status])
 
   const fetchUserInfo = async (authToken: string) => {
     try {
@@ -115,10 +139,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const socialLogin = async (provider: string) => {
+    await signIn(provider, { callbackUrl: '/' })
+  }
+
   const logout = () => {
-    setUser(null)
-    setToken(null)
-    localStorage.removeItem('chess_token')
+    if (session) {
+      signOut({ callbackUrl: '/' })
+    } else {
+      setUser(null)
+      setToken(null)
+      localStorage.removeItem('chess_token')
+    }
   }
 
   const value = {
@@ -126,6 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     token,
     login,
     register,
+    socialLogin,
     logout,
     loading
   }
