@@ -1,24 +1,39 @@
 'use client'
 
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { DndProvider } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { ChessBoard } from './ChessBoard'
 import { GameControls } from './GameControls'
 import { MoveHistory } from './MoveHistory'
-import { GameState, Move, Color } from '@/lib/types'
+import { useAuth } from '@/lib/auth-context'
+import { GameState, Move } from '@/lib/types'
 import { createInitialGameState, chessToBoard } from '@/lib/chess-utils'
 import { Chess } from 'chess.js'
 
-export const ChessGame: React.FC = () => {
+interface MultiplayerChessGameProps {
+  gameId: string
+  onBackToLobby: () => void
+}
+
+export const MultiplayerChessGame: React.FC<MultiplayerChessGameProps> = ({ 
+  gameId, 
+  onBackToLobby 
+}) => {
+  const { user, token } = useAuth()
   const [gameState, setGameState] = useState<GameState>(createInitialGameState())
   const [chess] = useState(() => new Chess())
   const [moveHistory, setMoveHistory] = useState<Move[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [boardFlipped, setBoardFlipped] = useState(false)
   const [gameResult, setGameResult] = useState<{ winner: string | null; reason: string } | null>(null)
+  const [players, setPlayers] = useState<any[]>([
+    { id: user?.id, username: user?.username, email: user?.email }
+  ])
+  const [isConnected, setIsConnected] = useState(true)
 
-  const updateGameState = useCallback(() => {
+  const updateGameState = useCallback((fen: string) => {
+    chess.load(fen)
     setGameState({
       board: chessToBoard(chess),
       turn: chess.turn(),
@@ -33,10 +48,17 @@ export const ChessGame: React.FC = () => {
   }, [chess, moveHistory])
 
   useEffect(() => {
-    updateGameState()
-  }, [updateGameState])
+    // For now, we'll implement a simple multiplayer without real-time sockets
+    // This will be a placeholder until we fix the Socket.IO issues
+    console.log('Multiplayer game initialized for game:', gameId)
+    setIsConnected(true)
+  }, [gameId])
 
   const handleMove = useCallback((move: Move) => {
+    if (!isConnected) return
+
+    // For now, just make the move locally
+    // TODO: Implement proper multiplayer move handling
     try {
       const moveResult = chess.move({
         from: move.from,
@@ -52,80 +74,81 @@ export const ChessGame: React.FC = () => {
           san: moveResult.san
         }
 
-        // Update move history
-        const newHistory = moveHistory.slice(0, historyIndex + 1)
-        newHistory.push(newMove)
+        const newHistory = [...moveHistory, newMove]
         setMoveHistory(newHistory)
         setHistoryIndex(newHistory.length - 1)
 
-        updateGameState()
+        updateGameState(chess.fen())
+
+        if (chess.isGameOver()) {
+          const result = chess.isCheckmate() ? 
+            { winner: chess.turn() === 'w' ? 'b' : 'w', reason: 'checkmate' } :
+            { winner: null, reason: 'stalemate' }
+          setGameResult(result)
+        }
       }
     } catch (error) {
       console.error('Invalid move:', error)
     }
-  }, [chess, moveHistory, historyIndex, updateGameState])
+  }, [isConnected, chess, moveHistory, updateGameState])
 
   const handleGameOver = useCallback((result: { winner: string | null; reason: string }) => {
     setGameResult(result)
   }, [])
 
   const handleNewGame = useCallback(() => {
-    chess.reset()
-    setMoveHistory([])
-    setHistoryIndex(-1)
-    setGameResult(null)
-    updateGameState()
-  }, [chess, updateGameState])
+    // In multiplayer, this would typically mean resigning
+    onBackToLobby()
+  }, [onBackToLobby])
 
   const handleUndo = useCallback(() => {
-    if (historyIndex >= 0) {
-      chess.undo()
-      setHistoryIndex(historyIndex - 1)
-      updateGameState()
-    }
-  }, [chess, historyIndex, updateGameState])
+    // Undo not available in multiplayer
+    alert('Undo is not available in multiplayer games')
+  }, [])
 
   const handleRedo = useCallback(() => {
-    if (historyIndex < moveHistory.length - 1) {
-      const nextMove = moveHistory[historyIndex + 1]
-      chess.move({
-        from: nextMove.from,
-        to: nextMove.to,
-        promotion: nextMove.promotion || 'q'
-      })
-      setHistoryIndex(historyIndex + 1)
-      updateGameState()
-    }
-  }, [chess, historyIndex, moveHistory, updateGameState])
+    // Redo not available in multiplayer
+    alert('Redo is not available in multiplayer games')
+  }, [])
 
   const handleFlipBoard = useCallback(() => {
     setBoardFlipped(!boardFlipped)
   }, [boardFlipped])
 
   const handleMoveClick = useCallback((index: number) => {
-    // Reset to the position at the given move index
-    chess.reset()
-    for (let i = 0; i <= index; i++) {
-      const move = moveHistory[i]
-      chess.move({
-        from: move.from,
-        to: move.to,
-        promotion: move.promotion || 'q'
-      })
-    }
-    setHistoryIndex(index)
-    updateGameState()
-  }, [chess, moveHistory, updateGameState])
+    // Move navigation not available in multiplayer
+    alert('Move navigation is not available in multiplayer games')
+  }, [])
 
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="h-full w-full flex flex-col bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
         {/* Header */}
         <div className="flex-shrink-0 text-center py-6 bg-gradient-to-r from-black/20 to-purple-900/20 backdrop-blur-md border-b border-white/10 shadow-2xl">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent mb-2">
-            ♔ 3D Chess Game ♛
-          </h1>
-          <p className="text-sm text-purple-200 font-medium">Play chess with stunning 3D effects and drag & drop</p>
+          <div className="flex items-center justify-between px-6">
+            <button
+              onClick={onBackToLobby}
+              className="text-purple-200 hover:text-white transition-colors"
+            >
+              ← Back to Lobby
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent mb-1">
+                ♔ Multiplayer Chess ♛
+              </h1>
+              <div className="flex items-center justify-center space-x-4 text-sm text-purple-200">
+                <div className={`flex items-center space-x-1 ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
+                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                  <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
+                </div>
+                <span>Game ID: {gameId.slice(0, 8)}...</span>
+              </div>
+            </div>
+            <div className="text-right text-sm text-purple-200">
+              <div>Players: {players.length}/2</div>
+              <div>Your turn: {gameState.turn === 'w' ? 'White' : 'Black'}</div>
+            </div>
+          </div>
         </div>
 
         {/* Main Game Area */}
@@ -154,9 +177,31 @@ export const ChessGame: React.FC = () => {
                 onUndo={handleUndo}
                 onRedo={handleRedo}
                 onFlipBoard={handleFlipBoard}
-                canUndo={historyIndex >= 0}
-                canRedo={historyIndex < moveHistory.length - 1}
+                canUndo={false}
+                canRedo={false}
               />
+            </div>
+
+            {/* Players */}
+            <div className="flex-shrink-0 bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-xl p-4 border border-gray-200">
+              <h3 className="text-sm font-bold mb-3 text-gray-800">Players</h3>
+              <div className="space-y-2">
+                {players.map((player, index) => (
+                  <div
+                    key={player.id}
+                    className={`p-2 rounded-lg ${
+                      player.id === user?.id 
+                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' 
+                        : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700'
+                    }`}
+                  >
+                    <div className="font-medium">{player.username}</div>
+                    <div className="text-xs opacity-75">
+                      {index === 0 ? 'White' : 'Black'} • {player.id === user?.id ? 'You' : 'Opponent'}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Game Status */}

@@ -1,0 +1,61 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Game relationships
+  gamesAsWhite Game[] @relation("WhitePlayer")
+  gamesAsBlack Game[] @relation("BlackPlayer")
+  gameMoves    GameMove[]
+
+  @@map("users")
+}
+
+model Game {
+  id          String      @id @default(cuid())
+  whitePlayer User        @relation("WhitePlayer", fields: [whitePlayerId], references: [id])
+  whitePlayerId String
+  blackPlayer User        @relation("BlackPlayer", fields: [blackPlayerId], references: [id])
+  blackPlayerId String
+  status      String      @default("WAITING") // WAITING, IN_PROGRESS, FINISHED, ABANDONED
+  currentFen  String      @default("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+  winner      String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  moves GameMove[]
+
+  @@map("games")
+}
+
+model GameMove {
+  id        String   @id @default(cuid())
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  gameId    String
+  player    User     @relation(fields: [playerId], references: [id])
+  playerId  String
+  move      String   // SAN notation
+  from      String   // e.g., "e2"
+  to        String   // e.g., "e4"
+  fen       String   // FEN after move
+  moveNumber Int
+  createdAt DateTime @default(now())
+
+  @@map("game_moves")
+}
+

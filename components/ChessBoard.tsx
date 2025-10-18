@@ -94,7 +94,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
 
   return (
     <div className="flex flex-col items-center space-y-4 w-full h-full">
-      <div className="chess-board">
+      <div className="chess-board w-full h-full flex items-center justify-center">
         {Array.from({ length: 8 }, (_, row) =>
           Array.from({ length: 8 }, (_, col) => {
             const square = indexToSquare(row, col)
