@@ -227,7 +227,7 @@ export function initializeSocket(server: NetServer) {
       console.log(`User ${user.username} disconnected`)
       
       // Remove user from all game rooms
-      for (const [gameId, room] of gameRooms.entries()) {
+      for (const [gameId, room] of Array.from(gameRooms.entries())) {
         if (room.players.has(user.id)) {
           room.players.delete(user.id)
           

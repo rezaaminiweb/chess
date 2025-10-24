@@ -1,5 +1,5 @@
 import NextAuth from 'next-auth'
-import { PrismaAdapter } from '@auth/prisma-adapter'
+import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import { prisma } from '@/lib/db'
 import GoogleProvider from 'next-auth/providers/google'
 import GitHubProvider from 'next-auth/providers/github'
@@ -105,6 +105,7 @@ const handler = NextAuth({
           id: user.id,
           email: user.email,
           name: user.name || user.username,
+          username: user.username,
           image: user.image,
         }
       }
@@ -117,7 +118,7 @@ const handler = NextAuth({
     async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id
-        token.username = user.name
+        token.username = user.username
       }
       return token
     },
